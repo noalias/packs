@@ -12,21 +12,19 @@
 (defvar noalias-packs--cache
   (expand-file-name noalias-packs-cache noalias-packs--root))
 
-(defconst noalias-packs-re (rx (* (not (any "./"))) ?/ (group (* (not ?.))) (? ?. (* nonl)))
+(defconst noalias-packs-re (rx (+? (not (or ?. ?/)))
+                               ?/
+                               (group (* (not ?.)) (? ?. (* nonl)))
+                               eos)
   "Package 必须符合 \"user/repo\" 的形式")
 
 (cl-defstruct (noalias-packs--pkg
-               (:constructor noalias-packs--make-pkg
-                             (pkg
-                              &aux
-                              (m (split-string path "/"))
-                              (user (car m))
-                              (repo (cadr m)))))
-  path user repo pu-repo)
+               (:constructor noalias-packs--make))
+  path repo pu-repo)
 
-(defun noalias-packs--make (pkg)
+(defun noalias-packs-make (pkg)
   (if (string-match-p noalias-packs-re pkg)
-      (noalias-packs--make-pkg pkg)
+      (noalias-packs--make pkg)
     (user-error   "Package 必须符合 \"user/repo\" 的形式")))
 
 (defvar noalias-packs--loaded-files nil)
