@@ -73,7 +73,7 @@
                  (length autoload-files))
         (setq noalias-packs--loaded-files autoload-files))))
 
-(defun noalias-packs--build (origin target  &optional source-dir doc-dir)
+(defun noalias-packs--build (origin target  &optional source-dir)
   (let ((dir (expand-file-name source-dir origin)))
     (and (file-exists-p dir)
          (setq origin dir)))
@@ -128,7 +128,7 @@
 ;;; init
 (noalias-packs--init)
 
-(cl-defun noalias-packs-use (pkg &key (source-dir "lisp") doc-dir)
+(cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
   (interactive "sInput the repo: ")
   (noalias-packs--use pkg source-dir doc-dir))
 
