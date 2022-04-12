@@ -25,6 +25,7 @@
 (defvar noalias-packs--autoloadfile-format "%s-autoloads")
 (defvar noalias-packs--loaded-files nil)
 (defun noalias-packs--use (pkg)
+  "Install build & load package."
   (let* ((pkg (noalias-packs--make pkg))
          (path (plist-get pkg :path))
          (name (plist-get pkg :name))
@@ -49,7 +50,8 @@
               (progn
                 (or (file-exists-p ".git")
                     (shell-command "git init"))
-                (shell-command (format "git submodule add --depth 1 git@github.com:%s.git" path)))
+                (or (file-exists-p repo)
+                    (shell-command (format "git submodule add --depth 1 git@github.com:%s.git" path))))
             (require 'magit-git)
             (require 'magit-clone)
             (unless (member repo (magit-list-module-names))
@@ -67,13 +69,12 @@
             (load autoload-file)
             ;; 更新 loaded-files
             (push autoload-file autoload-files)))))
-    (or (eq autoload-files noalias-packs--loaded-files)
+    (or (length= noalias-packs--loaded-files
+                 (length autoload-files))
         (setq noalias-packs--loaded-files autoload-files))))
 
-(defvar noalias-packs--source-dir-maybe "lisp")
 (defun noalias-packs--build (origin target  &optional source-dir doc-dir)
-  (let ((dir (expand-file-name
-              (or source-dir noalias-packs--source-dir-maybe) origin)))
+  (let ((dir (expand-file-name source-dir origin)))
     (and (file-exists-p dir)
          (setq origin dir)))
   ;; the target directory's created when pkg's installed,
@@ -126,5 +127,9 @@
 
 ;;; init
 (noalias-packs--init)
+
+(cl-defun noalias-packs-use (pkg &key (source-dir "lisp") doc-dir)
+  (interactive "sInput the repo: ")
+  (noalias-packs--use pkg source-dir doc-dir))
 
 (provide 'init-packs)
