@@ -1,4 +1,7 @@
 ;;; -*- lexical-binding: t -*-
+(require 'rx)
+(require 'cl-lib)
+
 (defvar noalias-packs-root "emacs-lisp")
 
 (defvar noalias-packs--root
@@ -12,71 +15,71 @@
   (expand-file-name noalias-packs-cache noalias-packs--root))
 
 (defun noalias-packs--make (pkg)
-  ;; todo debug
-  (or (pcase pkg
-        ((rx (+? (not (or ?. ?/)))
-             ?/
-             (let name (group (* (not ?.)) (? ?. (* nonl))))
-             eos)
-         (message "?")
-         (list :path pkg :name name :repo repo)))
-      (user-error "Package 必须符合 \"user/repo\" 的形式")))
+  (or
+   (pcase pkg
+     ((rx (+? (not (or ?. ?/)))
+          ?/
+          (let repo
+            (let name (* (not ?.)) (? ?. (* nonl))))
+          eos)
+      (list pkg repo name)))
+   (user-error "Package 必须符合 \"user/repo\" 的形式")))
 
 (defvar noalias-packs--autoloadfile-format "%s-autoloads")
 (defvar noalias-packs--loaded-files nil)
-(defun noalias-packs--use (pkg)
+(defun noalias-packs--use (pkg source-dir)
   "Install build & load package."
-  (let* ((pkg (noalias-packs--make pkg))
-         (path (plist-get pkg :path))
-         (name (plist-get pkg :name))
-         (repo (plist-get pkg :repo))
-         (autoload-file (format noalias-packs--autoloadfile-format name))
-         (autoload-files noalias-packs--loaded-files))
-    ;; 获取 load-files 信息
-    (unless autoload-files
-      (pcase-dolist (`(,file . ,_) load-history)
-        (push file autoload-files)))
-    (let ((file-loaded))
+  (pcase-let ((`(,path ,repo ,name) (noalias-packs--make pkg)))
+    (let ((autoload-file (format noalias-packs--autoloadfile-format name))
+          (autoload-files noalias-packs--loaded-files)
+          file-loaded)
+      ;; 获取 load-files 信息
+      (or autoload-files
+          (pcase-dolist (`(,file . ,_) load-history)
+            (push file autoload-files)))
       ;; 判断 autoload-file 是否加载
+      (message "%s: " autoload-file)      
       (dolist (file autoload-files)
-        (and (eq autoload-file (file-name-base file))
+	(and (eq autoload-file (file-name-base file))
+	     (message "%s" (file-name-base file))
              (setq file-loaded t)))
       ;; 如果未加载
-      (unless file-loaded
-        ;; 如果 pkg 不存在则安装
-        (let ((default-directory noalias-packs--cache))
-          ;; 判断是否初始化，即 magit 是否已经加载
-          (if (not noalias-packs--inited)
-              (progn
-                (or (file-exists-p ".git")
-                    (shell-command "git init"))
-                (or (file-exists-p repo)
-                    (shell-command (format "git submodule add --depth 1 git@github.com:%s.git" path))))
-            (require 'magit-git)
-            (require 'magit-clone)
-            (unless (member repo (magit-list-module-names))
-              (let ((url (magit-clone--name-to-url path)))
-                (magit-submodule-add url)))))
-        ;; 如果 pkg 未构建则构建
-        (let ((origin (expand-file-name repo noalias-packs--cache))
-              (target (expand-file-name name noalias-packs--root)))
-          (unless (member name (directory-files noalias-packs--root))
-            (noalias-packs--build origin target))
-          ;; 将 pkg 加入 load-path
-          (push target load-path)
-          (let ((autoload-file (expand-file-name (concat autoload-file ".elc") target)))
-            ;; 加载 autoload-file
-            (load autoload-file)
-            ;; 更新 loaded-files
-            (push autoload-file autoload-files)))))
-    (or (length= noalias-packs--loaded-files
-                 (length autoload-files))
-        (setq noalias-packs--loaded-files autoload-files))))
+      (or file-loaded
+          ;; 如果 pkg 不存在则安装
+          (let ((default-directory noalias-packs--cache))
+            ;; 判断是否初始化，即 magit 是否已经加载
+            (if (not noalias-packs--inited)
+                (progn
+                  (or (file-exists-p ".git")
+                      (shell-command "git init"))
+                  (or (file-exists-p repo)
+                      (shell-command (format "git submodule add --depth 1 git@github.com:%s.git" path))))
+              (require 'magit-git)
+              (require 'magit-clone)
+              (unless (member repo (magit-list-module-names))
+                (let ((url (magit-clone--name-to-url path)))
+                  (magit-submodule-add url)))))
+          ;; 如果 pkg 未构建则构建
+          (let ((origin (expand-file-name repo noalias-packs--cache))
+                (target (expand-file-name name noalias-packs--root)))
+            (unless (member name (directory-files noalias-packs--root))
+              (noalias-packs--build origin target source-dir))
+            ;; 将 pkg 加入 load-path
+            (push target load-path)
+            (let ((autoload-file (expand-file-name (concat autoload-file ".elc") target)))
+              ;; 加载 autoload-file
+              (load autoload-file)
+              ;; 更新 loaded-files
+              (push autoload-file autoload-files))))
+      (or (eq (length  noalias-packs--loaded-files)
+              (length autoload-files))
+          (setq noalias-packs--loaded-files autoload-files)))))
 
 (defun noalias-packs--build (origin target  &optional source-dir)
-  (let ((dir (expand-file-name source-dir origin)))
-    (and (file-exists-p dir)
-         (setq origin dir)))
+  (pcase origin
+    ((and (app (expand-file-name target) dir)
+          (guard (file-exists-p dir)))
+     (setq origin dir)))
   ;; the target directory's created when pkg's installed,
   ;; now the result directory need to be created.
   (or (file-exists-p target)
@@ -112,24 +115,24 @@
       (update-directory-autoloads "")
       (byte-compile-file generated-autoload-file))))
 
+(cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
+  (interactive "sInput the repo: ")
+  (noalias-packs--use pkg source-dir))
+
 (defvar noalias-packs--inited nil)
 (defun noalias-packs--init ()
-  (or (executable-find name)
-      (user-error "Cannot find required executable: %s" name))
+  (or (executable-find "git")
+      (user-error "Cannot find required executable: %s" "git"))
   (unless (file-exists-p noalias-packs--cache)
-    (make-directory noalias-packs--cache t)
+    (make-directory noalias-packs--cache t))
     ;; get required packages
-    (let ((pkgs '("magnars/dash.el" "magit/with-editor" "magit/magit")))
-      (when (version< emacs-version "28.0")
-        (push "magit/translation" pkgs))
-      (dolist (pkg pkgs) (noalias-packs--use pkg))
-      (setq (noalias-packs--inited t)))))
+  (let ((pkgs '("magnars/dash.el" "magit/with-editor" "magit/magit")))
+    (when (version< emacs-version "28.0")
+      (push "magit/translation" pkgs))
+    (dolist (pkg pkgs) (noalias-packs-use pkg)))
+  (setq noalias-packs--inited t))
 
 ;;; init
 (noalias-packs--init)
-
-(cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
-  (interactive "sInput the repo: ")
-  (noalias-packs--use pkg source-dir doc-dir))
 
 (provide 'init-packs)
