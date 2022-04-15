@@ -20,13 +20,13 @@
      ((rx (+? (not (or ?. ?/)))
           ?/
           (let repo
-            (let name (* (not ?.)) (? ?. (* nonl))))
+            (let name (* (not ?.))) (? ?. (* nonl)))
           eos)
       (list pkg repo name)))
    (user-error "Package 必须符合 \"user/repo\" 的形式")))
 
 (defvar noalias-packs--autoloadfile-format "%s-autoloads")
-(defvar noalias-packs--loaded-files nil)
+(defvar noalias-packs--loaded-files '())
 (defun noalias-packs--use (pkg source-dir)
   "Install build & load package."
   (pcase-let ((`(,path ,repo ,name) (noalias-packs--make pkg)))
@@ -37,14 +37,14 @@
       (or autoload-files
           (pcase-dolist (`(,file . ,_) load-history)
             (push file autoload-files)))
-      ;; 判断 autoload-file 是否加载
-      (message "%s: " autoload-file)      
+      ;; 判断 autoload-file 是否加载    
       (dolist (file autoload-files)
 	(and (eq autoload-file (file-name-base file))
-	     (message "%s" (file-name-base file))
+	     (message "1%s" (file-name-base file))
              (setq file-loaded t)))
+      (message "2file loaded: %s" file-loaded)
       ;; 如果未加载
-      (or file-loaded
+      (unless file-loaded
           ;; 如果 pkg 不存在则安装
           (let ((default-directory noalias-packs--cache))
             ;; 判断是否初始化，即 magit 是否已经加载
@@ -63,6 +63,7 @@
           (let ((origin (expand-file-name repo noalias-packs--cache))
                 (target (expand-file-name name noalias-packs--root)))
             (unless (member name (directory-files noalias-packs--root))
+	      (message "Build %s" name)
               (noalias-packs--build origin target source-dir))
             ;; 将 pkg 加入 load-path
             (push target load-path)
@@ -77,7 +78,7 @@
 
 (defun noalias-packs--build (origin target  &optional source-dir)
   (pcase origin
-    ((and (app (expand-file-name target) dir)
+    ((and (app (expand-file-name source-dir) dir)
           (guard (file-exists-p dir)))
      (setq origin dir)))
   ;; the target directory's created when pkg's installed,
@@ -99,12 +100,12 @@
     ;; make soft link to source files
     (dolist (file (directory-files origin t "\\.el$"))
       (let* ((base (file-name-nondirectory file))
-             (byte-file (concat (file-name-sans-extension base ".elc"))))
+             (byte-file (concat (file-name-sans-extension base) ".elc")))
         (unless (string-prefix-p "." base)
-          (make-symbolic-link file base t))
-        (when (file-newer-than-file-p file byte-file)
-          (setq newer t)
-          (byte-compile-file byte-file))))
+          (make-symbolic-link file base t)
+          (when (file-newer-than-file-p file byte-file)
+            (setq newer t)
+            (byte-compile-file file)))))
     ;; 创建 autoloadfile
     (unless (file-exists-p generated-autoload-file)
       (with-current-buffer (find-file-noselect generated-autoload-file)
