@@ -39,10 +39,8 @@
             (push file autoload-files)))
       ;; 判断 autoload-file 是否加载    
       (dolist (file autoload-files)
-	(and (eq autoload-file (file-name-base file))
-	     (message "1%s" (file-name-base file))
+	(and (string= autoload-file (file-name-base file))
              (setq file-loaded t)))
-      (message "2file loaded: %s" file-loaded)
       ;; 如果未加载
       (unless file-loaded
           ;; 如果 pkg 不存在则安装
@@ -63,7 +61,6 @@
           (let ((origin (expand-file-name repo noalias-packs--cache))
                 (target (expand-file-name name noalias-packs--root)))
             (unless (member name (directory-files noalias-packs--root))
-	      (message "Build %s" name)
               (noalias-packs--build origin target source-dir))
             ;; 将 pkg 加入 load-path
             (push target load-path)
@@ -72,7 +69,7 @@
               (load autoload-file)
               ;; 更新 loaded-files
               (push autoload-file autoload-files))))
-      (or (eq (length  noalias-packs--loaded-files)
+      (or (eql (length noalias-packs--loaded-files)
               (length autoload-files))
           (setq noalias-packs--loaded-files autoload-files)))))
 
@@ -104,17 +101,16 @@
         (unless (string-prefix-p "." base)
           (make-symbolic-link file base t)
           (when (file-newer-than-file-p file byte-file)
-            (setq newer t)
-            (byte-compile-file file)))))
+            (setq newer t)))))
     ;; 创建 autoloadfile
     (unless (file-exists-p generated-autoload-file)
       (with-current-buffer (find-file-noselect generated-autoload-file)
-        (insert ";; -*- lexical-binding: t -*-\n")
-        (save-buffer)))
+	(insert ";; -*- lexical-binding: t -*-\n")
+	(save-buffer)))
     ;; 更新 autoloadfile
     (when newer
       (update-directory-autoloads "")
-      (byte-compile-file generated-autoload-file))))
+      (byte-recompile-directory default-directory 0 nil t))))
 
 (cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
   (interactive "sInput the repo: ")
