@@ -62,8 +62,6 @@
                 (target (expand-file-name name noalias-packs--root)))
             (unless (member name (directory-files noalias-packs--root))
               (noalias-packs--build origin target source-dir))
-            ;; 将 pkg 加入 load-path
-            (push target load-path)
             (let ((autoload-file (expand-file-name (concat autoload-file ".elc") target)))
               ;; 加载 autoload-file
               (load autoload-file)
@@ -82,6 +80,8 @@
   ;; now the result directory need to be created.
   (or (file-exists-p target)
       (make-directory target t))
+  ;; 创建 build 环境
+  (push target load-path)
   ;; build autoload file for elisp files
   (let* ((default-directory target)
          (inhibit-message t)
@@ -109,7 +109,7 @@
 	(save-buffer)))
     ;; 更新 autoloadfile
     (when newer
-      (update-directory-autoloads "")
+      (make-directory-autoloads "" generated-autoload-file)
       (byte-recompile-directory default-directory 0 nil t))))
 
 (cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
