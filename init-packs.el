@@ -89,8 +89,8 @@
           (concat (format noalias-packs--autoloadfile-format
                           (file-name-base (directory-file-name target)))
                   ".el"))
-         ;; 检查文件是否更新
-         (newer nil))
+         ;; 须更新的文件
+         (newer-files nil))
     ;; make soft link to source files
     (dolist (file (directory-files origin t "\\.el$"))
       (let* ((base (file-name-nondirectory file))
@@ -98,17 +98,16 @@
         (unless (string-prefix-p "." base)
           (make-symbolic-link file base t)
           (when (file-newer-than-file-p file byte-file)
-            (setq newer t)
-	    (byte-compile-file base)))))
+	    (push base newer-files)))))
     ;; 创建 autoloadfile
     (unless (file-exists-p generated-autoload-file)
       (with-current-buffer (find-file-noselect generated-autoload-file)
 	(insert ";; -*- lexical-binding: t -*-\n")
 	(save-buffer)))
     ;; 更新 autoloadfile
-    (when newer
+    (when newer-files
       (make-directory-autoloads "" generated-autoload-file)
-      (byte-compile-file generated-autoload-file))))
+      (mapc #'byte-compile-file (cons generated-autoload-file newer-files)))))
 
 (cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
   (interactive "sInput the repo: ")
