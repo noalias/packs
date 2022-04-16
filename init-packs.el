@@ -60,6 +60,9 @@
           ;; 如果 pkg 未构建则构建
           (let ((origin (expand-file-name repo noalias-packs--cache))
                 (target (expand-file-name name noalias-packs--root)))
+	    (or (file-exists-p target)
+		(make-directory target t))
+	    (push target load-path)
             (unless (member name (directory-files noalias-packs--root))
               (noalias-packs--build origin target source-dir))
             (let ((autoload-file (expand-file-name (concat autoload-file ".elc") target)))
@@ -68,7 +71,7 @@
               ;; 更新 loaded-files
               (push autoload-file autoload-files))))
       (or (eql (length noalias-packs--loaded-files)
-              (length autoload-files))
+               (length autoload-files))
           (setq noalias-packs--loaded-files autoload-files)))))
 
 (defun noalias-packs--build (origin target  &optional source-dir)
@@ -76,12 +79,6 @@
     ((and (app (expand-file-name source-dir) dir)
           (guard (file-exists-p dir)))
      (setq origin dir)))
-  ;; the target directory's created when pkg's installed,
-  ;; now the result directory need to be created.
-  (or (file-exists-p target)
-      (make-directory target t))
-  ;; 创建 build 环境
-  (push target load-path)
   ;; build autoload file for elisp files
   (let* ((default-directory target)
          (inhibit-message t)
@@ -101,7 +98,8 @@
         (unless (string-prefix-p "." base)
           (make-symbolic-link file base t)
           (when (file-newer-than-file-p file byte-file)
-            (setq newer t)))))
+            (setq newer t)
+	    (byte-compile-file base)))))
     ;; 创建 autoloadfile
     (unless (file-exists-p generated-autoload-file)
       (with-current-buffer (find-file-noselect generated-autoload-file)
@@ -110,7 +108,7 @@
     ;; 更新 autoloadfile
     (when newer
       (make-directory-autoloads "" generated-autoload-file)
-      (byte-recompile-directory default-directory 0 nil t))))
+      (byte-compile-file generated-autoload-file))))
 
 (cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
   (interactive "sInput the repo: ")
