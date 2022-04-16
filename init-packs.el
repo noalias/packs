@@ -60,8 +60,6 @@
           ;; 如果 pkg 未构建则构建
           (let ((origin (expand-file-name repo noalias-packs--cache))
                 (target (expand-file-name name noalias-packs--root)))
-	    (or (file-exists-p target)
-		(make-directory target t))
 	    (push target load-path)
             (unless (member name (directory-files noalias-packs--root))
               (noalias-packs--build origin target source-dir))
@@ -79,6 +77,8 @@
     ((and (app (expand-file-name source-dir) dir)
           (guard (file-exists-p dir)))
      (setq origin dir)))
+  (or (file-exists-p target)
+      (make-directory target t))
   ;; build autoload file for elisp files
   (let* ((default-directory target)
          (inhibit-message t)
