@@ -100,14 +100,16 @@
           (when (file-newer-than-file-p file byte-file)
 	    (push base newer-files)))))
     ;; 创建 autoloadfile
-    (unless (file-exists-p generated-autoload-file)
-      (with-current-buffer (find-file-noselect generated-autoload-file)
-	(insert ";; -*- lexical-binding: t -*-\n")
-	(save-buffer)))
+    ;; (unless (file-exists-p generated-autoload-file)
+    ;;   (with-current-buffer (find-file-noselect generated-autoload-file)
+    ;; 	(insert ";; -*- lexical-binding: t -*-\n")
+    ;; 	(save-buffer)))
     ;; 更新 autoloadfile
     (when newer-files
       (make-directory-autoloads "" generated-autoload-file)
-      (mapc #'byte-compile-file (cons generated-autoload-file newer-files)))))
+      (mapc #'byte-compile-file (cons generated-autoload-file newer-files)))
+    (when-let ((buf (find-buffer-visiting generated-autoload-file)))
+      (kill-buffer buf))))
 
 (cl-defun noalias-packs-use (pkg &key (source-dir "lisp"))
   (interactive "sInput the repo: ")
