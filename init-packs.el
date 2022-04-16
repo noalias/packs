@@ -63,7 +63,7 @@
 	    (push target load-path)
             (unless (member name (directory-files noalias-packs--root))
               (noalias-packs--build origin target source-dir))
-            (let ((autoload-file (expand-file-name (concat autoload-file ".elc") target)))
+            (let ((autoload-file (expand-file-name autoload-file target)))
               ;; 加载 autoload-file
               (load autoload-file)
               ;; 更新 loaded-files
@@ -85,6 +85,7 @@
          (find-file-hook nil)
          (write-file-functions nil)
          (backup-inhibited t)
+	 (no-byte-compile nil)
          (generated-autoload-file
           (concat (format noalias-packs--autoloadfile-format
                           (file-name-base (directory-file-name target)))
